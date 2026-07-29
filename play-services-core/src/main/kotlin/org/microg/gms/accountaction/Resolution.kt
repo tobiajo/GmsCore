@@ -33,6 +33,15 @@ enum class Requirement {
 data object Reauthenticate : Resolution()
 
 /**
+ * The account is supervised (Family Link) and the server requires the device to be enrolled in
+ * third-party device management (a supervision DPC) that microG cannot provide. Google grants a
+ * freshly registered device a grace window before enforcing this, so the pragmatic mitigation
+ * (mirroring the manual "clear storage" workaround) is to discard the device registration and
+ * re-check-in for a new androidId, then retry the token request once.
+ */
+data object ReRegisterDevice : Resolution()
+
+/**
  * Represents a situation that is known to be unsupported by microG.
  * Advise the user to remove the account.
  */
