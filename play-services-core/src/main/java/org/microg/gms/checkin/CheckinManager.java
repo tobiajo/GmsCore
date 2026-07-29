@@ -20,6 +20,7 @@ import android.accounts.Account;
 import android.accounts.AccountManager;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.util.Log;
 
 import org.microg.gms.auth.AuthConstants;
 import org.microg.gms.auth.AuthRequest;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CheckinManager {
+    private static final String TAG = "GmsCheckinManager";
     private static final long MIN_CHECKIN_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours
 
     @SuppressWarnings("MissingPermission")
@@ -46,13 +48,19 @@ public class CheckinManager {
         AccountManager accountManager = AccountManager.get(context);
         String accountType = AuthConstants.DEFAULT_ACCOUNT_TYPE;
         for (Account account : accountManager.getAccountsByType(accountType)) {
-            String token = new AuthRequest()
-                    .email(account.name).token(accountManager.getPassword(account))
-                    .hasPermission(true).service("ac2dm")
-                    .app("com.google.android.gsf", Constants.GMS_PACKAGE_SIGNATURE_SHA1)
-                    .getResponse().LSid;
-            if (token != null) {
-                accounts.add(new CheckinClient.Account(account.name, token));
+            // Isolate per-account token fetches: a single account whose ac2dm request is rejected
+            // (e.g. a supervised account) must not abort the whole check-in for every other account.
+            try {
+                String token = new AuthRequest()
+                        .email(account.name).token(accountManager.getPassword(account))
+                        .hasPermission(true).service("ac2dm")
+                        .app("com.google.android.gsf", Constants.GMS_PACKAGE_SIGNATURE_SHA1)
+                        .getResponse().LSid;
+                if (token != null) {
+                    accounts.add(new CheckinClient.Account(account.name, token));
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Skipping account in check-in, ac2dm token fetch failed: " + e.getMessage());
             }
         }
         CheckinRequest request = CheckinClient.makeRequest(context,
